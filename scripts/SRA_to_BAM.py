@@ -78,7 +78,7 @@ def make_run_alignment(exp_id, run_id, is_paired, ref_genome, nproc):
     if is_paired:
         fastq_input = "fastq/{0}_1.fastq.gz fastq/{0}_2.fastq.gz".format(run_id)
     else:
-        fastq_input = "fastq/{2}_1.fastq.gz fastq/{2}_2.fastq.gz".format(run_id) 
+        fastq_input = "fastq/{0}.fastq.gz".format(run_id) 
     cmd = "bwa mem -t {0} -M {1} {2} -R {3} | samtools sort -@ {0} -T /tmp/aln.sorted -o bam/{4}.bam".format(nproc, ref_genome, fastq_input, RG, run_id)
     print(cmd)
     ret_code = subprocess.call(cmd, shell=True)

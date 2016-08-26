@@ -7,9 +7,9 @@ basename := dicty
 downloaded:
 	mkdir -p bam
 	mkdir -p fastq
-	scripts/SRA_to_BAM.py SRX174012 $(ref_genome) $(nproc)
-	scripts/SRA_to_BAM.py SRX174013 $(ref_genome) $(nproc)
-	scripts/SRA_to_BAM.py SRX174014 $(ref_genome) $(nproc)
+	../scripts/SRA_to_BAM.py SRX174012 $(ref_genome) $(nproc)
+	../scripts/SRA_to_BAM.py SRX174013 $(ref_genome) $(nproc)
+	../scripts/SRA_to_BAM.py SRX174014 $(ref_genome) $(nproc)
 	touch downloaded
 
 bam/$(basenmae).bam: downloaded
@@ -21,8 +21,7 @@ bam/$(basenmae).bam: downloaded
 	samtools view -H bam/merge.bam | grep "^@PG" | cut -f 1-5 > PG.txt
 	samtools view -H bam/merge.bam | grep -v "^@PG" | cat - PG.txt > header.txt
 	echo -e "@RG\tID:ANCESTOR\tPL:illumina\tLB:XXXX\tSM:A0" >> header.txt
-	samtools reheader -P header.txt bam/merge.bam > 
-bam/$(basename).bam
+	samtools reheader -P header.txt bam/merge.bam > bam/$(basename).bam
 	samtools index bam/$(basename).bam
 	rm header.txt
 	rm bam/merge.bam
@@ -31,7 +30,7 @@ bam/$(basename).bam
 .PHONY: alignment
 alignment:
 	$(MAKE) bam/$(basename).bam
-
+	
 
 ##Summary
 
@@ -39,12 +38,10 @@ stats/$(basename).idxstats: bam/realigned.bam
 	samtools idxstats bam/realigned.bam > stats/$(basename).idxstats
 
 stats/$(basename).metrics: bam/realigned.bam
-	picard CollectWgsMetrics R=$(ref_genome) I=bam/realigned.bam 
-O=stats/$(basename).metrics
+	picard CollectWgsMetrics R=$(ref_genome) I=bam/realigned.bam O=stats/$(basename).metrics
 
 stats/$(basename)_cov: bam/realigned.bam
-	gatk -T DepthOfCoverage -R $(ref_genome) -I bam/realigned.bam -o 
-stats/$(basename)_cov -nt $(nproc) --omitIntervalStatistics 
+	gatk -T DepthOfCoverage -R $(ref_genome) -I bam/realigned.bam -o stats/$(basename)_cov -nt $(nproc) --omitIntervalStatistics 
 
 
 .PHONY: summary
@@ -57,18 +54,14 @@ summary:
 bam/md.bam: bam/$(basename).bam
 	mkdir -p stats
 	mkdir -p logs 
-	picard MarkDuplicates INPUT=bam/$(basename).bam 
-OUTPUT=bam/md.bam  
-METRICS_FILE=stats/dup_mark_metrics.txt ASSUME_SORTED=true 2> logs/dup_marking.log
+	picard MarkDuplicates INPUT=bam/$(basename).bam OUTPUT=bam/md.bam METRICS_FILE=stats/dup_mark_metrics.txt ASSUME_SORTED=true 2> logs/dup_marking.log
 
 indels.intervals: bam/md.bam
 	samtools index bam/md.bam
-	gatk -T RealignerTargetCreator -I bam/md.bam -R $(ref_genome) 
--nt $(nproc) -o indels.intervals 
+	gatk -T RealignerTargetCreator -I bam/md.bam -R $(ref_genome) -nt $(nproc) -o indels.intervals 
 
-bam/realigned.bam: bam/md.bam indels.intervals
-	gatk -T IndelRealigner -I bam/md.bam -R $(ref_genome) 
--targetIntervals indels.intervals -o bam/realigned.bam
+bam/realigned.bam: bam/md.bam indels.intervals	
+	gatk -T IndelRealigner -I bam/md.bam -R $(ref_genome) -targetIntervals indels.intervals -o bam/realigned.bam
 	samtools index bam/realigned.bam 
 
 .PHONY: clean_alignment
@@ -80,19 +73,17 @@ clean_alignment:
 
 vars/gatk_haploid_raw.vcf: bam/realigned.bam
 	mkdir -vars 
-	gatk -T HaplotypeCaller -R $(ref_genome) -I bam/realigned.bam 
--ploidy 1 -o 
-vars/gatk_haploid_raw.vcf 2> logs/hc.log
+	gatk -T HaplotypeCaller -R $(ref_genome) -I bam/realigned.bam -ploidy 1 -o vars/gatk_haploid_raw.vcf 2> logs/hc.log
 
 results/consensus.out: vars/gatk_haploid_raw.vcf
-	scripts/consensus.py vars/gatk_haploid_raw.vcf > results/consensus.out
+	../scripts/consensus.py vars/gatk_haploid_raw.vcf > results/consensus.out
 
 ##Parameters
 
 parameters.ini: bam/realigned.bam 
 	cp template_parameters.ini parameters.ini 
-	samtools view -H bam/realigned.bam | python scripts/extract_samples.py A0 - >> parameters.ini
-	python scripts/GC_content.py $(ref_genome) >> parameters.ini
+	samtools view -H bam/realigned.bam | python ../scripts/extract_samples.py A0 - >> parameters.ini
+	python ../scripts/GC_content.py $(ref_genome) >> parameters.ini
 
 
 .PHONY: parameters
@@ -107,10 +98,9 @@ parameters:
 ##Dictionary
 
 dictionary_reference_genome.bed: $(ref_genome)
-	python2 scripts/dictionary_converter.py $(ref_genome) | grep -v 
-"^DDB0169550" > dictionary_reference_genome.bed
+	python ../scripts/dictionary_converter.py $(ref_genome) | grep -v "^DDB0169550" > dictionary_reference_genome.bed
 
-tmp/aa: dictionary_reference_genome.bed 
+tmp: dictionary_reference_genome.bed 
 	mkdir -p tmp
 	bedtools makewindows -g dictionary_reference_genome.bed -w 10000000 | split -l 1 - tmp/
 
@@ -124,9 +114,7 @@ dictionary:
 results/raw_accuMUlate.out: tmp parameters.ini bam/realigned.bam 
 	mkdir -p results
 	rm -f results/unsorted.out 
-	parallel -j $(nproc) ./accuMUlate -c parameters.ini -b 
-bam/realigned.bam -r $(ref_genome) -i {} ::: tmp/* > 
-results/unsorted.out
+	parallel -j $(nproc) ../accuMUlate -c parameters.ini -b bam/realigned.bam -r $(ref_genome) -i {} ::: tmp/* > results/unsorted.out
 	sort -k1,1 -k2,2n results/unsorted.out >results/raw_accuMUlate.out
 
 .PHONY: result
@@ -156,6 +144,9 @@ clean:
 
 .PHONY: all
 all:
+	$(MAKE) downloaded
+	$(MAKE) alignment
+	$(MAKE) clean_alignment
 	$(MAKE) analysis
 	$(MAKE) summary
 	$(MAKE) remove-intermediates 
@@ -168,4 +159,5 @@ all:
 #
 #bam/SRR534464.bam: fastq/SRR534464.fastq.gz ref/dicty_chromosomal.fasta
 #	bwa mem -t 20 -M ref/dicty_chromosomal.fasta fastq/SRR534464.fastq.gz -R "@RG\tID:SRR534464\tSM:SRR534464\tPL:illumina\tLB:SRR534464" | samtools sort -T /tmp/aln.sorted -o bam/SRR534464.bam
-#
+#:x
+
