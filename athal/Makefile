@@ -3,8 +3,15 @@ ref_genome := ref/Athal.fasta
 nproc := 20
 basename := athal
 
+$(ref_genome):
+	mkdir -p ref
+	wget  https://www.arabidopsis.org/download_files/Genes/TAIR10_genome_release/TAIR10_chromosome_files/TAIR10_chr_all.fas -O $(ref_genome)
 
-downloaded:
+.PHONY: reference_genome
+reference_genome:
+	$(MAKE) $(ref_genome)
+
+downloaded: $(ref_genome)
 	mkdir -p bam
 	mkdir -p fastq
 	../scripts/SRA_to_BAM.py ERX386692 $(ref_genome) $(nproc)
