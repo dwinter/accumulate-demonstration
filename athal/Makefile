@@ -1,24 +1,31 @@
 SHELL := /bin/bash
 ref_genome := ref/Athal.fasta
-nproc := 20
+nproc := 10
 basename := athal
 
-$(ref_genome):
+$(ref_genome).bwt:
 	mkdir -p ref
-	wget  https://www.arabidopsis.org/download_files/Genes/TAIR10_genome_release/TAIR10_chromosome_files/TAIR10_chr_all.fas -O $(ref_genome)
+	wget  https://www.arabidopsis.org/download_files/Genes/TAIR10_genome_release/TAIR10_chromosome_files/TAIR10_chr_all.fas -O ref/temp.fasta
+	awk '{print $1}' ref/temp.fasta  > $(ref_genome)
+	rm ref/temp.fasta
+	samtools faidx $(ref_genome)
+	picard-tools CreateSequenceDictionary R=$(ref_genome) O=$(ref_genome:.fasta=.dict)
+	bwa index -a bwtsw $(ref_genome)
 
 .PHONY: reference_genome
 reference_genome:
-	$(MAKE) $(ref_genome)
+	$(MAKE) $(ref_genome).bwt
 
-downloaded: $(ref_genome)
+downloaded: $(ref_genome).bwt
 	mkdir -p bam
 	mkdir -p fastq
-	../scripts/SRA_to_BAM.py ERX386692 $(ref_genome) $(nproc)
-	../scripts/SRA_to_BAM.py ERX386693 $(ref_genome) $(nproc)
-	../scripts/SRA_to_BAM.py ERX386399 $(ref_genome) $(nproc)
-	../scripts/SRA_to_BAM.py ERX386702 $(ref_genome) $(nproc)
-	../scripts/SRA_to_BAM.py ERX386705 $(ref_genome) $(nproc)
+#	../scripts/SRA_to_BAM.py ERX386692 $(ref_genome) $(nproc) #04
+#	../scripts/SRA_to_BAM.py ERX386694 $(ref_genome) $(nproc) #08
+	../scripts/SRA_to_BAM.py ERX386699 $(ref_genome) $(nproc) #59
+	../scripts/SRA_to_BAM.py ERX386701 $(ref_genome) $(nproc) #79
+	../scripts/SRA_to_BAM.py ERX386702 $(ref_genome) $(nproc) #89
+	../scripts/SRA_to_BAM.py ERX386703 $(ref_genome) $(nproc) #99
+	../scripts/SRA_to_BAM.py ERX386705 $(ref_genome) $(nproc) #119
 	touch downloaded
 #
 bam/$(basename).bam: downloaded
@@ -44,13 +51,13 @@ alignment:
 #
 ##Summary
 #
-stats/$(basename).idxstats: bam/realigned.bam
+stats/$(basename).idxstats: bam/realigned.bai
 	samtools idxstats bam/realigned.bam > stats/$(basename).idxstats
 
-stats/$(basename).metrics: bam/realigned.bam
-	picard CollectWgsMetrics R=$(ref_genome) I=bam/realigned.bam O=stats/$(basename).metrics
+stats/$(basename).metrics: bam/realigned.bai
+	picard-tools CollectWgsMetrics R=$(ref_genome) I=bam/realigned.bam O=stats/$(basename).metrics
 
-stats/$(basename)_cov: bam/realigned.bam
+stats/$(basename)_cov: bam/realigned.bai
 	gatk -T DepthOfCoverage -R $(ref_genome) -I bam/realigned.bam -o stats/$(basename)_cov -nt $(nproc) --omitIntervalStatistics
 #
 #
@@ -67,22 +74,21 @@ summary:
 bam/md.bam: bam/$(basename).bam
 	mkdir -p stats
 	mkdir -p logs
-	picard MarkDuplicates INPUT=bam/$(basename).bam OUTPUT=bam/md.bam  METRICS_FILE=stats/dup_mark_metrics.txt ASSUME_SORTED=true 2> logs/dup_marking.log
+	picard-tools MarkDuplicates INPUT=bam/$(basename).bam OUTPUT=bam/md.bam  METRICS_FILE=stats/dup_mark_metrics.txt ASSUME_SORTED=true 2> logs/dup_marking.log
 #
 indels.intervals: bam/md.bam
 	samtools index bam/md.bam
 	gatk -T RealignerTargetCreator -I bam/md.bam -R $(ref_genome) -nt $(nproc) -o indels.intervals 
 #
-bam/realigned.bam: bam/md.bam indels.intervals
+bam/realigned.bai: bam/md.bam indels.intervals
 	gatk -T IndelRealigner -I bam/md.bam -R $(ref_genome) -targetIntervals indels.intervals -o bam/realigned.bam
-	samtools index bam/realigned.bam 
 
 .PHONY: clean_alignment
 clean_alignment:
 	$(MAKE) bam/realigned.bam
 
 ###Analysis
-vars/gatk_haploid_raw.vcf: bam/realigned.bam
+vars/gatk_haploid_raw.vcf: bam/realigned.bai
 	mkdir -p vars
 	gatk -T HaplotypeCaller -R $(ref_genome) -I bam/realigned.bam -ploidy 2 -o vars/gatk_haploid_raw.vcf 2> logs/hc.log
 
@@ -98,25 +104,35 @@ tmp/aa: Athal.genome
 	mkdir -p tmp
 	bedtools makewindows -g Athal.genome -w 1000000  | split -l 1 - tmp/
 
-params.ini: bam/realigned.bam
+params.ini: bam/realigned.bai
 	cp params_template.ini params.ini
 	samtools view -H bam/realigned.bam | python2 ../scripts/extract_samples.py A0 - >> params.ini
 	python2 ../scripts/GC_content.py $(ref_genome) >> params.ini
 
 	
-results/accu_raw.out: bam/realigned.bam params.ini tmp/
+results/accu_raw.out: bam/realigned.bai params.ini tmp/
 	mkdir -p results
 	rm -f results/acc_raw_unsorted.out 	
-	parallel -j $(nproc) ./accuMUlate -c params.ini -b bam/realigned.bam -r $(ref_genome) -i {} -m30 '>>' results/acc_raw_unsorted.out  ::: tmp/* 
+	parallel -j $(nproc) accuMUlate -c params.ini -b bam/realigned.bam -x bam/realigned.bai -r $(ref_genome) -i {} -m30 '>>' results/acc_raw_unsorted.out  ::: tmp/* 
 	sort -k1,1 -k2,2n results/acc_raw_unsorted.out  > results/accu_raw.out
+
+
+random_intervals/: Athal.genome
+	mkdir -p random_intervals/
+	bedtools random -n 6000 -l 1000 -seed 123321 -g Athal.genome  | split -l 1 - random_intervals/
+
+results/denom.out: bam/realigned.bai random_intervals/
+	parallel -j $(nproc) denominate -b bam/realigned.bam -x bam/realigned.bai -r $(ref_genome) -i {} -m30 -c denom_params.ini  '>>' results/denom.out ::: random_intervals/*
+
+athal_analysis.pdf: results/accu_raw.out results/denom.out
+	Rscript -e 'rmarkdown::render("athal_analysis.Rmd")'
+	
 
 
 
 .PHONY: analysis
 analysis:
-	$(MAKE) vars/gatk_haploid_raw.vcf
-	$(MAKE) results/consensus.out
-	$(MAKE) results/accu_raw.out
+	$(MAKE) athal_analysis.pdf
 #
 .PHONY: remove-intermediates
 remove-intermediates:

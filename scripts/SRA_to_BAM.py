@@ -10,6 +10,7 @@ usage:
 """
 import urllib2
 import sys
+import os
 import time
 import re
 import argparse
@@ -53,16 +54,21 @@ def fetch_run_ids(SRA_ID):
     nested = [extract_ranges(x) for x in ena_node[1].text.split(",")]
     return unnest(nested), bool( rec.findall(".//PAIRED") )
 
-def fetch_fastq(run_id, paired=True):
+def fetch_fastq(run_id, paired=True, overwrite=False):
     if paired:
         files = ["{0}_{1}.fastq.gz".format(run_id,i) for i in [1,2]]
     else:
         files = [run_id + ".fastq.gz"]
     for f in files:
+        fname = "fastq/" + f
+        if os.path.exists(fname):
+            print("Already there..", overwrite)
+            if not overwrite:
+                continue
         url = base_fastq_url.format(run_id[:6], run_id, f)
         print "Downloading " + f + "..."
         response = urllib2.urlopen(url)
-        with open("fastq/"+f, "wb") as out:
+        with open(fname, "wb") as out:
             while True:
                 next_chunk = response.read(CHUNK)
                 if not next_chunk:
@@ -72,8 +78,12 @@ def fetch_fastq(run_id, paired=True):
                 out.write(next_chunk)
 
 #TODO: actually handle paried data
-def make_run_alignment(exp_id, run_id, is_paired, ref_genome, nproc):
+def make_run_alignment(exp_id, run_id, is_paired, ref_genome, nproc, overwrite=False):
     """ """
+    if not overwrite:
+        if os.path.exists("bam/{}.bam".format(run_id)):
+            sys.stderr.write("bam already exists, skipping")
+            return(0)
     RG = '"@RG\tID:{0}\tSM:{1}\tPL:illumina\tLB:{1}"'.format(run_id, exp_id)
     if is_paired:
         fastq_input = "fastq/{0}_1.fastq.gz fastq/{0}_2.fastq.gz".format(run_id)
@@ -89,6 +99,9 @@ def parse_args():
     parser.add_argument("id",  help="SRA experiment id")
     parser.add_argument("ref", help="Reference genome")
     parser.add_argument("nproc", help="Number of processors")
+    parser.add_argument("--overwrite", 
+                        help="Overwrite file if it exists in fastq/", 
+                        action="store_true")
     return(parser.parse_args())
     
 
@@ -97,8 +110,8 @@ def main():
     arg_vals = parse_args()
     ids, is_paired = fetch_run_ids(arg_vals.id)
     for run_id in ids:
-        fetch_fastq(run_id, is_paired)
-        make_run_alignment(arg_vals.id, run_id, is_paired, arg_vals.ref, arg_vals.nproc)
+        fetch_fastq(run_id, is_paired, arg_vals.overwrite)
+        make_run_alignment(arg_vals.id, run_id, is_paired, arg_vals.ref, arg_vals.nproc, arg_vals.overwrite)
     return(0)
 
 
