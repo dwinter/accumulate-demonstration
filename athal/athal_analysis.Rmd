@@ -1,32 +1,33 @@
 ---
 title: Reanalysis of _Arabidposis_ mutation accumulation data
 output: pdf_document
-#bibliography: athal.bib
+bibliography: athal.bib
+cls: plos.csl
 author: David Winter
 ---
 
-##Introduction
+#Introduction
 
 This document describes the re-analysis of sequencing data from a mutation
-accumulation experiment in _Arabidopsis thaliana_ [@ossowski_2010]
-[@becker_2011]. Prior to running the analyses in this file, sequening reads where
-downloaded from SRA and alignmed to the TAIR10 reference genome. We then ran
-`accuMUlate` to identfiy putative mutations. 
+accumulation experiment in _Arabidopsis thaliana_ [@ossowski_2010; @becker_2011]. 
+Prior to running the analyses in this file, sequencing reads where
+downloaded from SRA and aligned to the TAIR10 reference genome. We then ran
+`accuMUlate` to identify putative mutations. 
 
 A complete record of the steps required to generate theese mutation calls is
 provided as [a github repository](https://github.com/dwinter/accumulate-demonstration/). 
 The output files we used in this analysis are:
 
  * `accu_raw.out`: Data from every site for which `accuMUlate` estimated a
-    muation probability of mutaion > 0.1.
- *  `denom.out` A file containing the data on the numer of A, C, G and T bases
+    muation probability > 0.1.
+ *  `denom.out` A file containing the data on the number of A, C, G and T bases
    that could be called for a mutation if one was present. This file is produced 
    by the `denominate` executable that is shipped with `accuMUlate`
 
 
-## The data
+# The data
 
-We begin by defining two hepler functions that will aid in processing this data.
+We begin by defining two helper functions that will aid in processing this data.
 
 ```{r}
 is_het <- function(g) substr(g,1,1) != substr(g, 2,2)
@@ -41,8 +42,8 @@ read_accu <- function(file, ...){
 }
 ```
 
-Then read in the mutation data. It is helpful to remove to sites that
-`accuMUlate` predicts to have been heterozyhous in the ancestor this experiment.
+We then  read in the mutation data. It is helpful to remove to sites that
+`accuMUlate` predicts to have been heterozygous in the ancestor of this experiment.
 Due to the nature of this experiment (with lines maintained by selfing and no
 sequencing data from the ancestral strain) these sites are likely to be
 ancestral heterozygosities in which one allele drifted to fixation in 
@@ -72,10 +73,10 @@ table(mu$six_mus)
 #accMUlate successfully identifies all validated mutations
 
 This dataset provides a number of useful ways to test the ability of `accuMUlate`
-to idenitfy mutations. Two of these lines were analysed by Ossowski and colleagues, -@ossowski_2010, 
+to identify mutations. Two of these lines were analysed by Ossowski and colleagues, -@ossowski_2010, 
 and the locations of validated mutations are thus available from the [`smal`
 database](cefg.uestc.edu.cn/smal/viewe.php?sp=ATHA1001). Thus we can compare
-`accuMUlate` results directl with published results. We start by reading in the 
+`accuMUlate` results directly with published results. We start by reading in the 
 published data from `smal` and creating subsets of the `accuMUlate` and
 published results that include only the two lines they share in common.
 
@@ -97,21 +98,21 @@ restudied_acc$loc <- paste0(restudied_acc$chrom, ":", restudied_acc$to)
 mean(restudied_con$loc %in% restudied_acc$loc)
 ```
 
-In addition, there are a number of putative mutations were not reported in the
-published work but nevertheless generated relatively high mutation probabilites
+In addition, there are a number of putative mutations that were not reported in the
+published work but nevertheless generated relatively high mutation probabilities
 using `accuMUlate`.
 
 ```{r}
 sum(!(restudied_acc$loc %in% restudied_con$acc))
 ```
 
-## Site summary data helps distinguish true postives from false positives
+# Site summary data helps distinguish true positives from false positives
 
 `accuMUlate` produces [a set of statistics for each putatively mutated site](https://github.com/dwinter/accuMUlate/wiki/Site-statistics).
-For the most part, these statistics compare reads supporting a putative mutations
+For the most part, these statistics compare reads supporting a putative mutation
 with those supporting an ancestral allele and can therefore be used to identify
-artefacts of sequencing, library preparation or alignment to reference that may
-have produce false positive mutation calls. 
+artefacts of sequencing, library preparation or alignment-to-reference that may
+have produced false positive mutation calls. 
 
 In our dataset we have a set of putative mutations that we know to be true
 mutations (having been validated by Ossowski et al, 2010) and another set that
@@ -131,50 +132,63 @@ statistics.
 With that column added, we can compare a subset of these statistics between each
 set of putative mutations.
 
-```{r}
+```{r, warning=FALSE, fig.cap="Comparison of quality-control statistics calculated from validated and and not-validated mutations."}
 library(reshape2)
 library(ggplot2)
-restudied_acc$strand_min <- apply(restudied_acc[,c("mutant_F","mutant_R")], 1 ,min)
-restudied_acc$published <- ifelse(restudied_acc$loc %in% restudied_con$loc, "published", "not published")
+theme_set(theme_bw())
 
-molten <- melt(restudied_acc, measure.vars=c("p_one", "MQ_diff", "insert_diff", "p_one", "strand_pval", "DP", "strand_min"))
+restudied_acc$strand_min <- apply(restudied_acc[,c("mutant_F","mutant_R")], 1 ,min)
+validated <- restudied_acc$loc %in% restudied_con$loc 
+restudied_acc$published <- ifelse(validated, "published", "not published")
+stats <- c("p_one", "MQ_diff", "insert_diff", "p_one", "strand_pval", "DP", "strand_min")
+molten <- melt(restudied_acc,  measure.vars=stats)
+
 ggplot(molten, aes(published, value, group=published)) + 
-  geom_boxplot() + 
-  facet_wrap(~variable, scales="free_y") + 
-  scale_y_log10()
+  geom_boxplot() +  scale_x_discrete("") + 
+  facet_wrap(~variable, scales="free_y") +
+  scale_y_log10("Statistic")
 ```
 
 It's clear from the first of these graphs that the mutation probability
 calculated by `accuMUlate` reflect the probability that putative mutation is
 validated. All validated mutations generated a probability of $1.0$. The
 non-validated set contains a number of sites with a mutation probability of
-$1.0$ but also several with lower probabilities. There is also a clear
-difference in the statistic summarising the difference in mapping quality
-between reads supporting a mutation and those supporting an ancestral allele:
-with the non-validated set containing many samples with very large values for
-this statistic. 
+$1.0$ but also several with lower probabilities. There are also clears
+differences in the statistics used to compare mutant and non-mutant reads. 
+Notably, the not-published subset has relatively high values for `MQ_diff` and 
+`insert_diff` (i.e. difference in mapping quality and inferred insert-size 
+between ancestral and descendant alleles) and a number of samples with very high 
+sequencing depth. 
 
 With a larger set of mutations, and known false-positives, it would be possible
 to use logistic regression to identify statistics that are particularity powerful
 at distinguishing true from false positive mutations. Here we will simply use
-these statistics to filter out sites. Only approximately a third of these 
-putative mutations meet these criteria.
+these statistics to filter out sites. Because `MQ-diff` and `insert-diff` appear
+to be informative we will use these statistics along with a requirement that
+mutations be supported by $> 6$ reads in both Fwd and Rev orientation.
+Only approximately one third of the mutative mutations fit these criteria.
 
 
 ```{r}
-filt <- (mu$p_one > 0.1 & mu$mutant_F > 6 & mu$mutant_R > 6 & mu$MQ_diff < 5 & mu$insert_diff < 5)
+filt <- (mu$p_one > 0.1 & mu$mutant_F > 6 & mu$mutant_R > 6 
+         & mu$MQ_diff < 5 & mu$insert_diff < 5)
 mean(filt)
 ```
 
+This filtering approach also removes the sites with very high depth.
+
+```{r}
+max(mu[filt,]$DP)
+```
+
 These results also contain a number of apparent multi-nucleotide mutations.
-Although these are interesting in their own right, even if they are true
-mutations that are not likely to be the result of independent concentrated on
-one small part of the genome. As we are interested in understanding the single
-nucleotide mutation rate, we should also remove these site. Here we remove any
-mutation that is within 2 bases of another mutation to produce a "single
-nucleotide mutation" dataset.
-
-
+In our experience, apparent multi-nucleotide mutations are often artefacts
+produced around indels. On the other hand, multi-nucleotide mutations certainly do
+occur and if we were analysing this dataset completely we would Sanger sequence
+these loci to investigate them further. For the purposes of this demonstration
+we are most interested in the single nucleotide mutation rate so we will remove 
+these sites. Here we remove any mutation that is within 2 bases of another 
+mutation to  produce a "single nucleotide mutation" dataset.
 
 ```{r}
 genomic_distance <- function(i,j, bed) {
@@ -189,10 +203,12 @@ genomic_distance <- function(i,j, bed) {
     }
     return(-1)
 }
+
 good_mu <- mu[filt,]
 good_mu$dist <- 0
 for(i in 1:nrow(good_mu)){
-    good_mu$dist[i] <- min(genomic_distance((i-1), i, good_mu), genomic_distance((i+1), i, good_mu), na.rm=TRUE)
+    good_mu$dist[i] <- min(genomic_distance((i-1), i, good_mu), 
+                           genomic_distance((i+1), i, good_mu), na.rm=TRUE)
 }
 
 snm <- good_mu[!(good_mu$dist %in% 1:2),]
@@ -201,7 +217,7 @@ snm <- good_mu[!(good_mu$dist %in% 1:2),]
 These two filtering steps leave us with `r nrow(snm)` putative mutations.
 
 
-## The mutation spectra is similar to previously published results. 
+# The mutation spectra is similar to previously published results. 
 
 Both the mutations reported in the original paper and variants sampled from
 natural populations of _A. thaliana_ show a very large excess of GC>AT
@@ -211,41 +227,38 @@ called if one was present (i.e. the denominator of our mutation rate
 calculation). The file `denom.out` contains an estimate of this number, produce
 by simulating mutations and applying the filters described above.
 
-
-## 
-
+`read_denom` is a helper function provided by `accumulate-tools` that reads
+in denominator information. In this case we used a 600,000bp sample of the 
+reference genome to estimate the proportion of call-able sites.
 
 ```{r}
-genome_size <- sum(read.table("Athal.genome")[,2])
-denom <- read.table("results/denom.out") 
-scale <- genome_size / (nrow(denom) * 1000)
-denom_params <- read.table("denom_params.ini", 
-                           sep="=", 
-                           col.names=c("param", "value"), 
-                           stringsAsFactors=FALSE)
+source("accumulater.R")
 
-denom_by_base <- t(sapply(1:4, function(i) colSums(denom[,seq(i,ncol(denom), 4)]))) * scale
-colnames(denom_by_base) <- denom_params[denom_params$param == "sample-name","value"]
-rownames(denom_by_base) <- c("A", "C", "G", "T")
+genome_size <- sum(read.table("Athal.genome")[,2])
+denom_by_base <- read_denom("results/denom.out", "denom_params.ini", genome_size, 6e6)
 knitr::kable(denom_by_base)
 ```
 
-Since the denominator is number of sites multiplied by the number of generations
+Since the denominator is the number of sites multiplied by the number of generations
 of MA we also need to know how many generations each of these lines evolved for
-(`ngen`). With that information we can work out the rate at mutation for
-each mutation type
+(`ngen`). With that information we can work out the rate of mutation for
+each mutation-type.
 
-
-```{r}
+```{r, fig.cap="Mutational spectrum"}
 ngen <- rep(31,5)
 nfreqs <-(denom_by_base %*% ngen)[,1]
 denom_by_type <-  rep(c(sum(nfreqs[c(1,4)]), sum(nfreqs[c(2,3)])), each=3 )
 mu_by_type <- as.data.frame(table(snm$six_mus, dnn="mutation_type"))
 mu_by_type$rate <- mu_by_type$Freq/denom_by_type
-ggplot(mu_by_type, aes(mutation_type, rate)) + geom_bar(stat="identity")
+
+ggplot(mu_by_type, aes(mutation_type, rate)) + 
+    geom_bar(stat="identity") +
+    scale_x_discrete("Mutation type") +
+    scale_y_continuous("Mutation rate") +
+    coord_flip()
 ```
 
-## The overall estimate of mutation rate is very similar to  that previously reported
+# The overall estimate of mutation rate is very similar to  that previously reported
 
 The first analysis of these MA lines produced an estimated mutation rate of 
 $7 \times 10^{-9}$ mutations per site per generation. Using our filtered
@@ -257,15 +270,9 @@ denom_by_sample <- colSums(denom_by_base) * ngen
 nrow(snm) / sum(denom_by_sample)
 ```
 
-## The mutation rate does not vary among samples
+# The mutation rate does not vary among samples
 
-Despite arising at similar mutation rate estimates,  we find more mutations in the 
-two lines analysed in both studies that did Ossowski et al (2010). The nature 
-of these datasets provides an opportunity the validity of these additional
-mutations. Two of the samples only accrued mutations for 3 generations, if
-`accMUlate` generates a lot of false positives mutations we should expect to see
-a higher estimated mutation rate in those lines. In fact, estimated rates are
-approximately equal across all samples. 
+With this information we can estimate the mutation rate from each sample alone. 
 
 ```{r}
 mu_by_sample <- table(snm$mutant_sample, dnn="sample")
@@ -275,14 +282,14 @@ sample_df <- data.frame(mu_by_sample,
 sample_df$rate <- sample_df$Freq/sample_df$denom
 ggplot(sample_df, aes(sample, rate)) + 
   geom_bar(stat="identity") +
-  theme(legend.title=element_blank())
+  coord_flip()
 ```
 
 
-## Mutations unique to accuMUlate have similar molecular spectra to validated mutations
+# Mutations unique to accuMUlate have similar molecular spectra to validated mutations
 
 
-### Heterozygotes
+## Heterozygotes
 
 The analytical pipeline used by Ossowski et al (2010) was unable to identify
 mutations that were still heterozygous (i.e. had not yet selfed to
@@ -299,67 +306,80 @@ Heterozygous putative mutations also show a strong bias toward GC>AT mutations.
 table(snm[ snm$desc_het, "six_mus"])
 ```
 
-### Mutations in the two lines analysed in both studies
+## Mutations in the two lines analysed in both studies
 
 Similarly, those putative mutations from the two samples re-analysed here that 
 pass our filtering steps but were not reported by Ossowski et al (2010) show a
-similar molecular spectrum.
+similar molecular spectrum, most notably an enrichment of GC>AT mutations.
 
 ```{r}
 snm_restudy <- snm[snm$mutant_sample %in%  c("ERX386699", "ERX386705"),]
-snm_restudy$pub <- paste0(snm_restudy$chrom, ":", snm_restudy$to) %in% restudied_con$loc
+snm_loc <- paste0(snm_restudy$chrom, ":", snm_restudy$to) 
+snm_restudy$pub <- snm_loc %in% restudied_con$loc
 comp <- aggregate(as.factor(six_mus) ~ pub, data=snm_restudy, FUN=table)[,2]
 rownames(comp) <- c("not published", "published")
 knitr::kable(comp)
 ```
 
-Spectra are not signficantly different
+These spectra are not significantly different from each other.
 
-```
+```{r}
 fisher.test(comp)
 ```
 
 
-## Table 1 for the paper
+# Summary tables.
 
-Finally, let's create Table 1 from the manuscript.
-
-### Mutation spectrum across samples
-
-```{r}
-sample_spectrum <- aggregate(as.factor(six_mus) ~ mutant_sample, data=snm, FUN=table)
-
-at_by_sample <- colSums(denom_by_base[c(1,4),] ) * ngen
-cg_by_sample <- colSums(denom_by_base[2:3,] ) * ngen
-D <- cbind( matrix(at_by_sample, nrow=5, ncol=3), matrix(cg_by_sample, nrow=5, ncol=3))
-D <- rbind(D, denom_by_type, denom_by_type)
-mus <- sample_spectrum[sapply(colnames(denom_by_base), function(x) which(x==sample_spectrum$mutant_sample)),2]
-mus <- rbind(mus, table(as.factor(snm$six_mus)[ snm$desc_het ]), colSums(mus))
-rates <- round(mus/D, 12)
-combined <- cbind(mus, mus/D)[,rep(1:6, each=2) + (0:1) * 6] 
-```
-
-## Summary infortmation 
-
+Finally, let's collect some of this data together to make the sort of tables you
+might include in a scientific paper on an MA experiment. I have written some
+functions to make this relatively straightforward. First, we can create a
+summary table with information broken down by sample.
 
 ```{r}
-sample_names <- names(at_by_sample)
-rate_by_sample <- round(rowSums(mus)/(at_by_sample + cg_by_sample),12)
 
+summary_table <- function(filtered, unfiltered, denom_by_base, ngen){
+    denom_by_sample <- colSums(denom_by_base) * ngen
+    sample_names <- names(denom_by_sample)
+    rate_by_sample <- round(mu_by_sample/denom_by_sample,12)[sample_names]
+    res <- data.frame(      
+      sample = c(sample_names, "All hets", "All"),
+      ngen = c(ngen, rep(sum(ngen),2)),
+      n.initial = c(table(mu$mutant_sample)[sample_names],sum(mu$desc_het), nrow(mu)),
+      n.filter = c(mu_by_sample[sample_names], sum(snm$desc_het), nrow(snm)),
+      rate = c(rate_by_sample, "-", round(nrow(snm) / sum(denom_by_sample), 12))
+    )
+    res
+}
 
+summ_table <- summary_table(snm, mu, denom_by_base, rep(31,5))
+knitr::kable(summ_table, caption="Summary of MA analysis by line")
 
-df0 <- data.frame(
-  sample = c(sample_names, "All hets", "All"),
-  ngen = c(ngen, rep(sum(ngen),2)),
-  n.initial = c(table(mu$mutant_sample)[sample_names],sum(mu$desc_het), nrow(mu)),
-  n.filter = c(mu_by_sample[sample_names], sum(snm$desc_het), nrow(snm)),
-  rate = c(rate_by_sample[1:5], "-", round(nrow(snm) / sum(denom_by_sample), 12))
-)
-df0
-
-knitr::kable(cbind(df0, combined), digits=11)
 ```
 
+We can also calculate the molecular spectrum of mutation by sample. Again, this
+is wrapped up in a helper function. 
 
+```{r}
 
-## References
+rate_table <- function(mu, denom_by_base, ngen, total=TRUE){
+    snames <- colnames(denom_by_base)
+    sample_spectrum <- aggregate(as.factor(six_mus) ~ mutant_sample, 
+                                 data=mu, FUN=table, simplify=FALSE)
+    spec_list <- structure(sample_spectrum[[2]], .Names=sample_spectrum$mutant_sample)
+    D <- spectrum_denom(denom_by_base, ngen)
+    res <- as.data.frame(sapply(snames, function(x) spec_list[[x]]/D[[x]]))
+    if(total){
+        total_denom <- rep(rowSums(sapply(D, "[", c(1,4))), each=3)
+        total_n <- rowSums(sapply(spec_list, "+"))
+        res$total <- total_n/total_denom
+    }
+    res
+}
+
+rate_spectrum <- rate_table(snm, denom_by_base, 31)
+knitr::kable(formatC(as.matrix(rate_spectrum)), 
+             caption="Mutational spectra ($\\hat{\\mu}$) by line")
+```
+ 
+
+# References
