@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 ref_genome := ref/Athal.fasta
-nproc := 10
+nproc := 1
 basename := athal
 
 $(ref_genome).bwt:
@@ -19,11 +19,11 @@ reference_genome:
 downloaded: $(ref_genome).bwt
 	mkdir -p bam
 	mkdir -p fastq
-	../scripts/SRA_to_BAM.py ERX386699 $(ref_genome) $(nproc) #59
-	../scripts/SRA_to_BAM.py ERX386701 $(ref_genome) $(nproc) #79
-	../scripts/SRA_to_BAM.py ERX386702 $(ref_genome) $(nproc) #89
-	../scripts/SRA_to_BAM.py ERX386703 $(ref_genome) $(nproc) #99
-	../scripts/SRA_to_BAM.py ERX386705 $(ref_genome) $(nproc) #119
+	scripts/SRA_to_BAM.py ERX386699 $(ref_genome) $(nproc) #59
+	scripts/SRA_to_BAM.py ERX386701 $(ref_genome) $(nproc) #79
+	scripts/SRA_to_BAM.py ERX386702 $(ref_genome) $(nproc) #89
+	scripts/SRA_to_BAM.py ERX386703 $(ref_genome) $(nproc) #99
+	scripts/SRA_to_BAM.py ERX386705 $(ref_genome) $(nproc) #119
 	touch downloaded
 #
 bam/$(basename).bam: downloaded
@@ -58,7 +58,7 @@ stats/$(basename).metrics: bam/realigned.bai
 stats/$(basename)_cov: bam/realigned.bai
 	gatk -T DepthOfCoverage -R $(ref_genome) -I bam/realigned.bam -o stats/$(basename)_cov -nt $(nproc) --omitIntervalStatistics
 #
-#
+
 .PHONY: summary
 summary:
 	$(MAKE) stats/$(basename).idxstats
@@ -94,19 +94,19 @@ vars/gatk_haploid_raw.vcf: bam/realigned.bai
 
 Athal.genome: 
 	#only look at the nuclear genome, not the mt or plastid
-	python2 ../scripts/dictionary_converter.py ref/Athal.fasta | egrep ^[1-5] > Athal.genome
+	python2 scripts/dictionary_converter.py ref/Athal.fasta | egrep ^[1-5] > Athal.genome
 
-tmp/aa: Athal.genome
-	mkdir -p tmp
+windows/: Athal.genome
+	mkdir -p windows
 	bedtools makewindows -g Athal.genome -w 1000000  | split -l 1 - tmp/
 
 params.ini: bam/realigned.bai
 	cp params_template.ini params.ini
-	samtools view -H bam/realigned.bam | python2 ../scripts/extract_samples.py A0 - >> params.ini
-	python2 ../scripts/GC_content.py $(ref_genome) >> params.ini
+	samtools view -H bam/realigned.bam | python2 scripts/extract_samples.py A0 - >> params.ini
+	python2 scripts/GC_content.py $(ref_genome) >> params.ini
 
 	
-results/accu_raw.out: bam/realigned.bai params.ini tmp/
+results/accu_raw.out: bam/realigned.bai params.ini windows/
 	mkdir -p results
 	rm -f results/acc_raw_unsorted.out 	
 	parallel -j $(nproc) accuMUlate -c params.ini -b bam/realigned.bam -x bam/realigned.bai -r $(ref_genome) -i {} -m30 '>>' results/acc_raw_unsorted.out  ::: tmp/* 

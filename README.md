@@ -25,3 +25,8 @@ followign packages
 
 To  generate a PDF you will need a `TeX` environment and `pandoc`.
 
+# Run everthing
+
+```
+$ make nproc=10 all
+```
