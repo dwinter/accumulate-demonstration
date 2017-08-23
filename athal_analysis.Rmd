@@ -361,6 +361,17 @@ is wrapped up in a helper function.
 
 ```{r}
 
+spectrum_denom <- function(denom_by_base, ngen){
+    nsamp <- ncol(denom_by_base)
+    snames <- colnames(denom_by_base)
+    at_by_sample <- colSums(denom_by_base[c(1,4),] ) * ngen
+    cg_by_sample <- colSums(denom_by_base[2:3,] ) * ngen
+    res <- lapply(snames, 
+                  function(x) rep(c(at_by_sample[x], cg_by_sample[x]),each=3))
+    names(res) <- snames
+    res
+}
+
 rate_table <- function(mu, denom_by_base, ngen, total=TRUE){
     snames <- colnames(denom_by_base)
     sample_spectrum <- aggregate(as.factor(six_mus) ~ mutant_sample, 

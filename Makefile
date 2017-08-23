@@ -19,8 +19,6 @@ reference_genome:
 downloaded: $(ref_genome).bwt
 	mkdir -p bam
 	mkdir -p fastq
-#	../scripts/SRA_to_BAM.py ERX386692 $(ref_genome) $(nproc) #04
-#	../scripts/SRA_to_BAM.py ERX386694 $(ref_genome) $(nproc) #08
 	../scripts/SRA_to_BAM.py ERX386699 $(ref_genome) $(nproc) #59
 	../scripts/SRA_to_BAM.py ERX386701 $(ref_genome) $(nproc) #79
 	../scripts/SRA_to_BAM.py ERX386702 $(ref_genome) $(nproc) #89
@@ -47,7 +45,7 @@ bam/$(basename).bam: downloaded
 .PHONY: alignment
 alignment:
 	$(MAKE) bam/$(basename).bam
-#
+
 #
 ##Summary
 #
@@ -68,7 +66,7 @@ summary:
 	$(MAKE) stats/$(basename)_cov
 
 #
-###Clean
+###Clean the alignment up
 #
 
 bam/md.bam: bam/$(basename).bam
@@ -88,13 +86,11 @@ clean_alignment:
 	$(MAKE) bam/realigned.bam
 
 ###Analysis
+#
+# Might as well do our usual trick of looking for variants with gatk
 vars/gatk_haploid_raw.vcf: bam/realigned.bai
 	mkdir -p vars
 	gatk -T HaplotypeCaller -R $(ref_genome) -I bam/realigned.bam -ploidy 2 -o vars/gatk_haploid_raw.vcf 2> logs/hc.log
-
-results/consensus.out: vars/gatk_haploid_raw.vcf
-	../scripts/consensus.py vars/gatk_haploid_raw.vcf > results/consensus.out
-
 
 Athal.genome: 
 	#only look at the nuclear genome, not the mt or plastid
@@ -128,12 +124,10 @@ athal_analysis.pdf: results/accu_raw.out results/denom.out
 	Rscript -e 'rmarkdown::render("athal_analysis.Rmd")'
 	
 
-
-
 .PHONY: analysis
 analysis:
 	$(MAKE) athal_analysis.pdf
-#
+
 .PHONY: remove-intermediates
 remove-intermediates:
 	rm -f bam/$(basename).bam
@@ -143,18 +137,10 @@ remove-intermediates:
 	rm -f bam/merge.bam
 	rm -f header.txt
 	rm -f PG.txt
-#
-#.PHONY: clean
-#clean:
-#	rm -f indels.intervals
-#	rm -f vars/*
-#	rm -f stats/*
-#	rm -f logs/*
-#	$(MAKE) remove-intermediates 
-#
+
 .PHONY: all
 all:
 	$(MAKE) analysis
 	$(MAKE) summary
 	$(MAKE) remove-intermediates 
-#
+
