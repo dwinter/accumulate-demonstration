@@ -122,7 +122,10 @@ results/denom.out: bam/realigned.bai random_intervals/
 
 athal_analysis.pdf: results/accu_raw.out results/denom.out athal_analysis.Rmd
 	Rscript -e 'rmarkdown::render("athal_analysis.Rmd")'
-	
+
+athal_analysis.html: results/accu_raw.out results/denom.out athal_analysis.Rmd
+	Rscript -e 'rmarkdown::render("athal_analysis.Rmd", "html_document")'
+
 
 .PHONY: analysis
 analysis:
