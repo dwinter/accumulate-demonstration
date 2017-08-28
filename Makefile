@@ -120,7 +120,7 @@ random_intervals/: Athal.genome
 results/denom.out: bam/realigned.bai random_intervals/
 	parallel -j $(nproc) denominate -b bam/realigned.bam -x bam/realigned.bai -r $(ref_genome) -i {} -m30 -c denom_params.ini  '>>' results/denom.out ::: random_intervals/*
 
-athal_analysis.pdf: results/accu_raw.out results/denom.out
+athal_analysis.pdf: results/accu_raw.out results/denom.out athal_analysis.Rmd
 	Rscript -e 'rmarkdown::render("athal_analysis.Rmd")'
 	
 

@@ -326,15 +326,14 @@ These spectra are not significantly different from each other.
 ```{r}
 fisher.test(comp)
 ```
+\pagebreak
 
-
-# Summary tables.
+# Summary tables
 
 Finally, let's collect some of this data together to make the sort of tables you
 might include in a scientific paper on an MA experiment. I have written some
 functions to make this relatively straightforward. First, we can create a
-summary table with information broken down by sample.
-
+summary table with information broken down by sample. 
 ```{r}
 
 summary_table <- function(filtered, unfiltered, denom_by_base, ngen){
@@ -357,7 +356,7 @@ knitr::kable(summ_table, caption="Summary of MA analysis by line")
 ```
 
 We can also calculate the molecular spectrum of mutation by sample. Again, this
-is wrapped up in a helper function. 
+process is wrapped up in helper functions that may be helpful for other studies. 
 
 ```{r}
 
@@ -384,7 +383,7 @@ rate_table <- function(mu, denom_by_base, ngen, total=TRUE){
         total_n <- rowSums(sapply(spec_list, "+"))
         res$total <- total_n/total_denom
     }
-    res
+    data.frame(t(res))
 }
 
 rate_spectrum <- rate_table(snm, denom_by_base, 31)
