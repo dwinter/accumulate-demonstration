@@ -1,12 +1,12 @@
 ---
 title: Reanalysis of _Arabidposis_ mutation accumulation data
-output: pdf_document
+output: bookdown::pdf_document2
 bibliography: athal.bib
 cls: plos.csl
 author: David Winter
 ---
 
-#Introduction
+#Introduction {-}
 
 This document describes the re-analysis of sequencing data from a mutation
 accumulation experiment in _Arabidopsis thaliana_ [@ossowski_2010; @becker_2011]. 
@@ -25,21 +25,13 @@ The output files we used in this analysis are:
    by the `denominate` executable that is shipped with `accuMUlate`
 
 
-# The data
+# The data {-}
 
-We begin by defining two helper functions that will aid in processing this data.
+We begin by importing some helper functions that will aid in processing this data,
+this code is availble in the root directory of the github repository.
 
 ```{r}
-is_het <- function(g) substr(g,1,1) != substr(g, 2,2)
-
-read_accu <- function(file, ...){
-    mu <- read.table(file, stringsAsFactors=FALSE, ...)
-    names(mu) <- c("chrom", "from", "to", "ref", "mutant_sample", "mutation", 
-                   "p_any", "p_one", "p_geno", "likelihood", "DP", 
-                   "mutant_F", "mutant_R", "anc_in_mutant", "mutant_in_anc",
-                   "MQ_diff", "insert_diff", "strand_pval", "pair_pval")
-    mu
-}
+source("accumulater.R")
 ```
 
 We then  read in the mutation data. It is helpful to remove to sites that
@@ -70,7 +62,7 @@ mu$six_mus <- mu_lookup[mu$mutation]
 table(mu$six_mus)
 ```
 
-#accMUlate successfully identifies all validated mutations
+#accMUlate successfully identifies all validated mutations {-}
 
 This dataset provides a number of useful ways to test the ability of `accuMUlate`
 to identify mutations. Two of these lines were analysed by Ossowski and colleagues, -@ossowski_2010, 
@@ -106,7 +98,7 @@ using `accuMUlate`.
 sum(!(restudied_acc$loc %in% restudied_con$acc))
 ```
 
-# Site summary data helps distinguish true positives from false positives
+# Site summary data helps distinguish true positives from false positives {-}
 
 `accuMUlate` produces [a set of statistics for each putatively mutated site](https://github.com/dwinter/accuMUlate/wiki/Site-statistics).
 For the most part, these statistics compare reads supporting a putative mutation
@@ -130,9 +122,9 @@ approach we have to create a new column that has the minimum of these two
 statistics. 
 
 With that column added, we can compare a subset of these statistics between each
-set of putative mutations.
+set of putative mutations (Figure \@ref(fig:covar)).
 
-```{r, warning=FALSE, fig.cap="Comparison of quality-control statistics calculated from validated and and not-validated mutations."}
+```{r covar, warning=FALSE,fig.cap="Comparison of quality-control statistics calculated from validated and and not-validated mutations."}
 library(reshape2)
 library(ggplot2)
 theme_set(theme_bw())
@@ -211,13 +203,13 @@ for(i in 1:nrow(good_mu)){
                            genomic_distance((i+1), i, good_mu), na.rm=TRUE)
 }
 
-snm <- good_mu[!(good_mu$dist %in% 1:2),]
+snm <- good_mu[!(good_mu$dist < 3),]
 ```
 
 These two filtering steps leave us with `r nrow(snm)` putative mutations.
 
 
-# The mutation spectra is similar to previously published results. 
+# The mutation spectra is similar to previously published results.  {-}
 
 Both the mutations reported in the original paper and variants sampled from
 natural populations of _A. thaliana_ show a very large excess of GC>AT
@@ -228,41 +220,35 @@ calculation). The file `denom.out` contains an estimate of this number, produce
 by simulating mutations and applying the filters described above.
 
 `read_denom` is a helper function provided by `accumulate-tools` that reads
-in denominator information. In this case we used a 600,000bp sample of the 
+in denominator information. In this case we random 1000 bp sample of the 
 reference genome to estimate the proportion of call-able sites.
 
 ```{r}
-source("accumulater.R")
-
 genome_size <- sum(read.table("Athal.genome")[,2])
-denom_by_base <- read_denom("results/denom.out", "denom_params.ini", genome_size, 6e6)
-knitr::kable(denom_by_base)
+denom_by_base <- read_denom("results/denom.out", "denom_params.ini", genome_size, 1000)
+knitr::kable(denom_by_base, booktabs=TRUE, caption="Mutatoin rate denominators by base")
 ```
 
 Since the denominator is the number of sites multiplied by the number of generations
 of MA we also need to know how many generations each of these lines evolved for
 (`ngen`). With that information we can work out the rate of mutation for
-each mutation-type.
+each (Figure \@ref(fig:spec)).
 
-```{r, fig.cap="Mutational spectrum"}
+```{r spec,  fig.cap="Mutational spectrum"}
 ngen <- rep(31,5)
-nfreqs <-(denom_by_base %*% ngen)[,1]
-denom_by_type <-  rep(c(sum(nfreqs[c(1,4)]), sum(nfreqs[c(2,3)])), each=3 )
-mu_by_type <- as.data.frame(table(snm$six_mus, dnn="mutation_type"))
-mu_by_type$rate <- mu_by_type$Freq/denom_by_type
-
-ggplot(mu_by_type, aes(mutation_type, rate)) + 
+mu_by_type <- mutation_specturm(snm, denom_by_base, ngen)
+ggplot(mu_by_type, aes(mutation_type, rate)) +
     geom_bar(stat="identity") +
     scale_x_discrete("Mutation type") +
     scale_y_continuous("Mutation rate") +
     coord_flip()
 ```
 
-# The overall estimate of mutation rate is very similar to  that previously reported
+# The overall estimate of mutation rate is also similar to  that previously reported {-}
 
 The first analysis of these MA lines produced an estimated mutation rate of 
 $7 \times 10^{-9}$ mutations per site per generation. Using our filtered
-data set we produce a very similar estimate:
+data set we produce a similar estimate:
 
 
 ```{r}
@@ -270,11 +256,12 @@ denom_by_sample <- colSums(denom_by_base) * ngen
 nrow(snm) / sum(denom_by_sample)
 ```
 
-# The mutation rate does not vary among samples
+# The mutation rate does not vary among samples {-}
 
-With this information we can estimate the mutation rate from each sample alone. 
+With this information we can estimate the mutation rate from each sample alone 
+(Figure \@ref(fig:samp)).
 
-```{r}
+```{r samp, fig.cap="Mutation rate by sample"}
 mu_by_sample <- table(snm$mutant_sample, dnn="sample")
 sample_df <- data.frame(mu_by_sample, 
                         denom= denom_by_sample[names(mu_by_sample)])
@@ -286,10 +273,10 @@ ggplot(sample_df, aes(sample, rate)) +
 ```
 
 
-# Mutations unique to accuMUlate have similar molecular spectra to validated mutations
+# Mutations unique to accuMUlate have similar molecular spectra to validated mutations {-}
 
 
-## Heterozygotes
+## Heterozygotes {-}
 
 The analytical pipeline used by Ossowski et al (2010) was unable to identify
 mutations that were still heterozygous (i.e. had not yet selfed to
@@ -306,7 +293,7 @@ Heterozygous putative mutations also show a strong bias toward GC>AT mutations.
 table(snm[ snm$desc_het, "six_mus"])
 ```
 
-## Mutations in the two lines analysed in both studies
+## Mutations in the two lines analysed in both studies {-}
 
 Similarly, those putative mutations from the two samples re-analysed here that 
 pass our filtering steps but were not reported by Ossowski et al (2010) show a
@@ -318,7 +305,8 @@ snm_loc <- paste0(snm_restudy$chrom, ":", snm_restudy$to)
 snm_restudy$pub <- snm_loc %in% restudied_con$loc
 comp <- aggregate(as.factor(six_mus) ~ pub, data=snm_restudy, FUN=table)[,2]
 rownames(comp) <- c("not published", "published")
-knitr::kable(comp)
+knitr::kable(comp, booktabs=TRUE, 
+             caption="New accuMUlate mutations have a similar mutational spectrum to validate mutations")
 ```
 
 These spectra are not significantly different from each other.
@@ -326,32 +314,18 @@ These spectra are not significantly different from each other.
 ```{r}
 fisher.test(comp)
 ```
-\pagebreak
 
-# Summary tables
+# Summary tables {-}
 
 Finally, let's collect some of this data together to make the sort of tables you
 might include in a scientific paper on an MA experiment. I have written some
 functions to make this relatively straightforward. First, we can create a
 summary table with information broken down by sample. 
+
 ```{r}
 
-summary_table <- function(filtered, unfiltered, denom_by_base, ngen){
-    denom_by_sample <- colSums(denom_by_base) * ngen
-    sample_names <- names(denom_by_sample)
-    rate_by_sample <- round(mu_by_sample/denom_by_sample,12)[sample_names]
-    res <- data.frame(      
-      sample = c(sample_names, "All hets", "All"),
-      ngen = c(ngen, rep(sum(ngen),2)),
-      n.initial = c(table(mu$mutant_sample)[sample_names],sum(mu$desc_het), nrow(mu)),
-      n.filter = c(mu_by_sample[sample_names], sum(snm$desc_het), nrow(snm)),
-      rate = c(rate_by_sample, "-", round(nrow(snm) / sum(denom_by_sample), 12))
-    )
-    res
-}
-
-summ_table <- summary_table(snm, mu, denom_by_base, rep(31,5))
-knitr::kable(summ_table, caption="Summary of MA analysis by line")
+summ_table <- filtering_table(snm, mu, denom_by_base, rep(31,5))
+knitr::kable(summ_table, caption="Summary of MA analysis by line", booktabs = TRUE)
 
 ```
 
@@ -360,36 +334,11 @@ process is wrapped up in helper functions that may be helpful for other studies.
 
 ```{r}
 
-spectrum_denom <- function(denom_by_base, ngen){
-    nsamp <- ncol(denom_by_base)
-    snames <- colnames(denom_by_base)
-    at_by_sample <- colSums(denom_by_base[c(1,4),] ) * ngen
-    cg_by_sample <- colSums(denom_by_base[2:3,] ) * ngen
-    res <- lapply(snames, 
-                  function(x) rep(c(at_by_sample[x], cg_by_sample[x]),each=3))
-    names(res) <- snames
-    res
-}
-
-rate_table <- function(mu, denom_by_base, ngen, total=TRUE){
-    snames <- colnames(denom_by_base)
-    sample_spectrum <- aggregate(as.factor(six_mus) ~ mutant_sample, 
-                                 data=mu, FUN=table, simplify=FALSE)
-    spec_list <- structure(sample_spectrum[[2]], .Names=sample_spectrum$mutant_sample)
-    D <- spectrum_denom(denom_by_base, ngen)
-    res <- as.data.frame(sapply(snames, function(x) spec_list[[x]]/D[[x]]))
-    if(total){
-        total_denom <- rep(rowSums(sapply(D, "[", c(1,4))), each=3)
-        total_n <- rowSums(sapply(spec_list, "+"))
-        res$total <- total_n/total_denom
-    }
-    data.frame(t(res))
-}
-
 rate_spectrum <- rate_table(snm, denom_by_base, 31)
 knitr::kable(formatC(as.matrix(rate_spectrum)), 
-             caption="Mutational spectra ($\\hat{\\mu}$) by line")
+             caption="Mutational spectra ($\\hat{\\mu}$) by line", 
+             booktabs=TRUE)
 ```
  
 
-# References
+# References {-}

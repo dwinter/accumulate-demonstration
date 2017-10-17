@@ -5,7 +5,7 @@ basename := athal
 
 $(ref_genome).bwt:
 	mkdir -p ref
-	wget  https://www.arabidopsis.org/download_files/Genes/TAIR10_genome_release/TAIR10_chromosome_files/TAIR10_chr_all.fas -O ref/temp.fasta
+#	wget  https://www.arabidopsis.org/download_files/Genes/TAIR10_genome_release/TAIR10_chromosome_files/TAIR10_chr_all.fas -O ref/temp.fasta
 	awk '{print $1}' ref/temp.fasta  > $(ref_genome)
 	rm ref/temp.fasta
 	samtools faidx $(ref_genome)
@@ -96,8 +96,8 @@ Athal.genome:
 	#only look at the nuclear genome, not the mt or plastid
 	python2 scripts/dictionary_converter.py ref/Athal.fasta | egrep ^[1-5] > Athal.genome
 
-windows/: Athal.genome
-	mkdir -p windows
+tmp/: Athal.genome
+	mkdir -p tmp
 	bedtools makewindows -g Athal.genome -w 1000000  | split -l 1 - tmp/
 
 params.ini: bam/realigned.bai
@@ -106,7 +106,7 @@ params.ini: bam/realigned.bai
 	python2 scripts/GC_content.py $(ref_genome) >> params.ini
 
 	
-results/accu_raw.out: bam/realigned.bai params.ini windows/
+results/accu_raw.out: bam/realigned.bai params.ini tmp/
 	mkdir -p results
 	rm -f results/acc_raw_unsorted.out 	
 	parallel -j $(nproc) accuMUlate -c params.ini -b bam/realigned.bam -x bam/realigned.bai -r $(ref_genome) -i {} -m30 '>>' results/acc_raw_unsorted.out  ::: tmp/* 
@@ -115,13 +115,13 @@ results/accu_raw.out: bam/realigned.bai params.ini windows/
 
 random_intervals/: Athal.genome
 	mkdir -p random_intervals/
-	bedtools random -n 6000 -l 1000 -seed 123321 -g Athal.genome  | split -l 1 - random_intervals/
+	bedtools random -n 6000 -l 1000 -g Athal.genome  | split -l 1 - random_intervals/
 
 results/denom.out: bam/realigned.bai random_intervals/
 	parallel -j $(nproc) denominate -b bam/realigned.bam -x bam/realigned.bai -r $(ref_genome) -i {} -m30 -c denom_params.ini  '>>' results/denom.out ::: random_intervals/*
 
 athal_analysis.pdf: results/accu_raw.out results/denom.out athal_analysis.Rmd
-	Rscript -e 'rmarkdown::render("athal_analysis.Rmd")'
+	Rscript -e 'rmarkdown::render("athal_analysis.Rmd", output_options=list(toc=FALSE))'
 
 athal_analysis.html: results/accu_raw.out results/denom.out athal_analysis.Rmd
 	Rscript -e 'rmarkdown::render("athal_analysis.Rmd", "html_document")'
