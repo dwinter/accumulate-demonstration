@@ -11,8 +11,9 @@ author: David Winter
 This document describes the re-analysis of sequencing data from a mutation
 accumulation experiment in _Arabidopsis thaliana_ [@ossowski_2010; @becker_2011]. 
 Prior to running the analyses in this file, sequencing reads where
-downloaded from SRA and aligned to the TAIR10 reference genome. We then ran
-`accuMUlate` to identify putative mutations. 
+downloaded from SRA and aligned to the TAIR10 version of the   reference genome 
+(https://www.arabidopsis.org/). We then ran `accuMUlate` to  identify putative 
+mutations. 
 
 A complete record of the steps required to generate theese mutation calls is
 provided as [a github repository](https://github.com/dwinter/accumulate-demonstration/). 
@@ -51,7 +52,7 @@ nrow(mu)
 ```
 
 `accMUlate` provides the user with the most probable ancestral and descendant
-genotypes at each putatively mutant site. Here we convert these diploid
+genotype at each putatively mutant site. Here we convert these diploid
 genotypes changes to one of six possible base-pair mutations.
 
 ```{r}
@@ -65,7 +66,7 @@ table(mu$six_mus)
 #accMUlate successfully identifies all validated mutations {-}
 
 This dataset provides a number of useful ways to test the ability of `accuMUlate`
-to identify mutations. Two of these lines were analysed by Ossowski and colleagues, -@ossowski_2010, 
+to identify mutations. Two of these lines were analysed by Ossowski and colleagues (2010), 
 and the locations of validated mutations are thus available from the [`smal`
 database](cefg.uestc.edu.cn/smal/viewe.php?sp=ATHA1001). Thus we can compare
 `accuMUlate` results directly with published results. We start by reading in the 
@@ -78,7 +79,7 @@ published <- read.csv("smal_mus.csv", header=0, stringsAsFactors=FALSE)
 restudied_con <- published[published[,1] %in%  c(59, 119),]
 restudied_acc <- mu[mu$mutant_sample %in% c("ERX386699", "ERX386705"),]
 ```
-To compare the presence of absence of mutations in each dataset we add a new
+To compare the presence or absence of mutations in each dataset we add a new
 column `loc` that encodes the position of a mutation in the TAIR10 genome
 (`chrom:pos` in 1-based coordinates). All of the mutations validated in the
 published work are included the putative mutations identified by `accuMUlate`.
@@ -117,7 +118,7 @@ Two of the statistics are best used together. The `mutant_F` and `mutant_R`
 columns contain the number of reads mapping to the forward and reverse stand 
 of the reference genome. Because indels or repeats up or downstream of a site
 can create false positives, it can be useful to filter our sites that are not
-supported by some number of FWD or REV oriented reads. To accommodate this
+supported by some number of fowrard or reverse oriented reads. To accommodate this
 approach we have to create a new column that has the minimum of these two
 statistics. 
 
@@ -157,7 +158,7 @@ to use logistic regression to identify statistics that are particularity powerfu
 at distinguishing true from false positive mutations. Here we will simply use
 these statistics to filter out sites. Because `MQ-diff` and `insert-diff` appear
 to be informative we will use these statistics along with a requirement that
-mutations be supported by $> 6$ reads in both Fwd and Rev orientation.
+mutations be supported by $> 6$ reads in both forward and reverse orientation.
 Only approximately one third of the mutative mutations fit these criteria.
 
 
@@ -209,24 +210,24 @@ snm <- good_mu[!(good_mu$dist < 3),]
 These two filtering steps leave us with `r nrow(snm)` putative mutations.
 
 
-# The mutation spectra is similar to previously published results.  {-}
+# The mutation spectra is similar to previously published results  {-}
 
 Both the mutations reported in the original paper and variants sampled from
 natural populations of _A. thaliana_ show a very large excess of GC>AT
 mutations. To calculate the rate of each mutation type in our data we need to
-know the number of A,C, G and T bases from which a mutation could have been
+know the number of A, C, G and T bases from which a mutation could have been
 called if one was present (i.e. the denominator of our mutation rate
 calculation). The file `denom.out` contains an estimate of this number, produce
 by simulating mutations and applying the filters described above.
 
 `read_denom` is a helper function provided by `accumulate-tools` that reads
 in denominator information. In this case we random 1000 bp sample of the 
-reference genome to estimate the proportion of call-able sites.
+reference genome to estimate the proportion of callable sites.
 
 ```{r}
 genome_size <- sum(read.table("Athal.genome")[,2])
 denom_by_base <- read_denom("results/denom.out", "denom_params.ini", genome_size, 1000)
-knitr::kable(denom_by_base, booktabs=TRUE, caption="Mutatoin rate denominators by base")
+knitr::kable(denom_by_base, booktabs=TRUE, caption="Mutation rate denominators by base")
 ```
 
 Since the denominator is the number of sites multiplied by the number of generations
@@ -287,7 +288,7 @@ mutations, and indeed we find several such sites.
 table(snm$desc_het)
 ```
 
-Heterozygous putative mutations also show a strong bias toward GC>AT mutations.
+Putatively heterozygous mutations also enriched for GC>AT substitutions.
 
 ```{r}
 table(snm[ snm$desc_het, "six_mus"])
@@ -305,8 +306,9 @@ snm_loc <- paste0(snm_restudy$chrom, ":", snm_restudy$to)
 snm_restudy$pub <- snm_loc %in% restudied_con$loc
 comp <- aggregate(as.factor(six_mus) ~ pub, data=snm_restudy, FUN=table)[,2]
 rownames(comp) <- c("not published", "published")
+cap ="New accuMUlate mutations have a similar mutational spectrum to validate mutations"
 knitr::kable(comp, booktabs=TRUE, 
-             caption="New accuMUlate mutations have a similar mutational spectrum to validate mutations")
+             caption=cap)
 ```
 
 These spectra are not significantly different from each other.
@@ -318,25 +320,27 @@ fisher.test(comp)
 # Summary tables {-}
 
 Finally, let's collect some of this data together to make the sort of tables you
-might include in a scientific paper on an MA experiment. I have written some
-functions to make this relatively straightforward. First, we can create a
-summary table with information broken down by sample. 
+might include in a scientific paper on an MA experiment. Functions in the
+`accumulator.R` script includes some functions to make this relatively 
+straightforward. First, we can create a summary table with information broken 
+down by sample (Table 2).
 
 ```{r}
-
 summ_table <- filtering_table(snm, mu, denom_by_base, rep(31,5))
-knitr::kable(summ_table, caption="Summary of MA analysis by line", booktabs = TRUE)
+knitr::kable(summ_table, caption="Summary of MA analysis by sample", booktabs = TRUE)
 
 ```
 
 We can also calculate the molecular spectrum of mutation by sample. Again, this
-process is wrapped up in helper functions that may be helpful for other studies. 
+process is wrapped up in helper functions that may be helpful for other studies
+(Table 3).
 
 ```{r}
 
 rate_spectrum <- rate_table(snm, denom_by_base, 31)
+colnames(rate_spectrum) <- sub("\\.", ">", colnames(rate_spectrum))
 knitr::kable(formatC(as.matrix(rate_spectrum)), 
-             caption="Mutational spectra ($\\hat{\\mu}$) by line", 
+             caption="Mutational spectra ($\\hat{\\mu}$) by sample", 
              booktabs=TRUE)
 ```
  

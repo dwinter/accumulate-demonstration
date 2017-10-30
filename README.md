@@ -38,6 +38,7 @@ following package:
 * ggplot2
 * reshape2
 * rmarkdown
+* bookdown
 
 To  generate a PDF you will need a `TeX` environment and `pandoc`. If you don't
 have these installed you can generate an html version of the report.
