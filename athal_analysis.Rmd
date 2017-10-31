@@ -2,7 +2,7 @@
 title: Reanalysis of _Arabidposis_ mutation accumulation data
 output: bookdown::pdf_document2
 bibliography: athal.bib
-cls: plos.csl
+cls: bioinformatics.csl
 author: David Winter
 ---
 
